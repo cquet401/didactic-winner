@@ -46,7 +46,7 @@ function AppContent() {
             {viewMode === 'anatomy' ? (
               <p>拖拽旋转 · 滚轮缩放 · 查看眼睛3D结构</p>
             ) : (
-              <p>观察不同度数下的视觉模糊效果</p>
+              <p>拖拽旋转 · 滚轮缩放 · 观察不同度数下的视觉模糊效果</p>
             )}
           </div>
         </section>

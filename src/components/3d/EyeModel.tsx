@@ -1,206 +1,165 @@
-import { useRef, useMemo } from 'react';
-import { useFrame } from '@react-three/fiber';
+import { useMemo } from 'react';
 import * as THREE from 'three';
 import { useVision } from '../../contexts/VisionContext';
 
-function Iris({ radius = 0.35 }) {
-  const irisRef = useRef<THREE.Mesh>(null);
-
+function IrisTexture() {
   const irisTexture = useMemo(() => {
     const canvas = document.createElement('canvas');
     canvas.width = 512;
     canvas.height = 512;
-    const ctx = canvas.getContext('2d')!;
+    const ctx = canvas.getContext('2d');
 
-    // 棕色虹膜
-    const gradient = ctx.createRadialGradient(256, 256, 0, 256, 256, 256);
-    gradient.addColorStop(0, '#4a3728');
-    gradient.addColorStop(0.3, '#5c4033');
-    gradient.addColorStop(0.6, '#3d2817');
-    gradient.addColorStop(1, '#1f0f08');
+    if (!ctx) {
+      return null;
+    }
+
+    const gradient = ctx.createRadialGradient(256, 256, 20, 256, 256, 256);
+    gradient.addColorStop(0, '#7a5a38');
+    gradient.addColorStop(0.25, '#6a4a2d');
+    gradient.addColorStop(0.6, '#4f3420');
+    gradient.addColorStop(1, '#2a170d');
     ctx.fillStyle = gradient;
     ctx.fillRect(0, 0, 512, 512);
 
-    // 放射状纹理
-    ctx.strokeStyle = 'rgba(0, 0, 0, 0.4)';
-    ctx.lineWidth = 2;
-    for (let i = 0; i < 72; i++) {
-      const angle = (i / 72) * Math.PI * 2;
+    ctx.strokeStyle = 'rgba(0, 0, 0, 0.35)';
+    ctx.lineWidth = 1.5;
+    for (let i = 0; i < 180; i++) {
+      const angle = (i / 180) * Math.PI * 2;
+      const inner = 70 + (i % 2) * 8;
+      const outer = 250;
       ctx.beginPath();
-      ctx.moveTo(256, 256);
-      ctx.lineTo(
-        256 + Math.cos(angle) * 256,
-        256 + Math.sin(angle) * 256
-      );
+      ctx.moveTo(256 + Math.cos(angle) * inner, 256 + Math.sin(angle) * inner);
+      ctx.lineTo(256 + Math.cos(angle) * outer, 256 + Math.sin(angle) * outer);
       ctx.stroke();
     }
 
-    const texture = new THREE.CanvasTexture(canvas);
-    return texture;
+    return new THREE.CanvasTexture(canvas);
   }, []);
 
+  if (!irisTexture) {
+    return null;
+  }
+
   return (
-    <mesh ref={irisRef} position={[0, 0, 0.12]} rotation={[0, 0, 0]}>
-      <circleGeometry args={[radius, 64]} />
-      <meshStandardMaterial
-        map={irisTexture}
-        roughness={0.6}
-        metalness={0.1}
+    <mesh position={[0, 0, 0.29]}>
+      <circleGeometry args={[0.3, 96]} />
+      <meshStandardMaterial map={irisTexture} roughness={0.55} metalness={0.05} />
+    </mesh>
+  );
+}
+
+function Sclera({ scaleZ }: { scaleZ: number }) {
+  return (
+    <mesh scale={[1, 1, scaleZ]}>
+      <sphereGeometry args={[0.5, 96, 96]} />
+      <meshPhysicalMaterial
+        color="#f7f7f7"
+        roughness={0.35}
+        metalness={0}
+        clearcoat={0.2}
+        transmission={0.04}
+        thickness={0.3}
       />
     </mesh>
   );
 }
 
-function Pupil({ radius = 0.12 }) {
+function Retina({ scaleZ }: { scaleZ: number }) {
   return (
-    <mesh position={[0, 0, 0.13]}>
-      <circleGeometry args={[radius, 32]} />
-      <meshStandardMaterial color="#000000" roughness={0.2} />
+    <mesh scale={[0.93, 0.93, scaleZ * 0.92]}>
+      <sphereGeometry args={[0.5, 64, 64]} />
+      <meshStandardMaterial
+        color="#be8070"
+        transparent
+        opacity={0.22}
+        side={THREE.BackSide}
+        roughness={0.7}
+      />
+    </mesh>
+  );
+}
+
+function Lens() {
+  return (
+    <mesh position={[0, 0, 0.11]} scale={[0.62, 0.62, 0.32]}>
+      <sphereGeometry args={[0.38, 64, 64]} />
+      <meshPhysicalMaterial
+        color="#d6ecff"
+        transparent
+        opacity={0.35}
+        transmission={0.88}
+        roughness={0.05}
+        thickness={0.12}
+      />
     </mesh>
   );
 }
 
 function Cornea() {
   return (
-    <group position={[0, 0, 0.14]}>
-      {/* 角膜 - 半球形覆盖在眼睛前方，z=0.14与虹膜位置对应 */}
-      <mesh rotation={[0, 0, 0]}>
-        <sphereGeometry args={[0.42, 64, 64, 0, Math.PI * 2, 0, Math.PI / 2]} />
-        <meshPhysicalMaterial
-          color="#ffffff"
-          transparent
-          opacity={0.25}
-          roughness={0}
-          metalness={0}
-          transmission={0.92}
-          thickness={0.15}
-          clearcoat={1}
-          clearcoatRoughness={0}
-        />
-      </mesh>
-    </group>
+    <mesh position={[0, 0, 0.34]}>
+      <sphereGeometry args={[0.38, 96, 96, 0, Math.PI * 2, 0, Math.PI / 2]} />
+      <meshPhysicalMaterial
+        color="#ffffff"
+        transparent
+        opacity={0.22}
+        transmission={0.95}
+        roughness={0}
+        thickness={0.08}
+        clearcoat={1}
+      />
+    </mesh>
   );
 }
 
-function Sclera({ scaleZ = 1 }: { scaleZ?: number }) {
+function Pupil() {
   return (
-    <group>
-      {/* 巩膜（眼白）- 半透明 */}
-      <mesh scale={[1, 0.85, scaleZ]}>
-        <sphereGeometry args={[0.5, 64, 64]} />
-        <meshStandardMaterial
-          color="#f8f8f8"
-          roughness={0.8}
-          metalness={0}
-          transparent
-          opacity={0.35}
-          side={THREE.FrontSide}
-        />
-      </mesh>
-      {/* 巩膜内壁 */}
-      <mesh scale={[0.9, 0.76, scaleZ * 0.9]}>
-        <sphereGeometry args={[0.5, 32, 32]} />
-        <meshStandardMaterial
-          color="#d8c8c8"
-          roughness={0.9}
-          transparent
-          opacity={0.25}
-          side={THREE.BackSide}
-        />
-      </mesh>
-    </group>
+    <mesh position={[0, 0, 0.305]}>
+      <circleGeometry args={[0.11, 64]} />
+      <meshStandardMaterial color="#0d0d0d" roughness={0.3} metalness={0.1} />
+    </mesh>
   );
 }
 
-function BloodVessels() {
-  const vesselsRef = useRef<THREE.Group>(null);
-
-  const vessels = useMemo(() => {
-    const lines: THREE.Vector3[][] = [];
-    for (let i = 0; i < 12; i++) {
-      const startAngle = Math.random() * Math.PI * 2;
-      const startY = (Math.random() - 0.5) * 0.2;
-      const points: THREE.Vector3[] = [];
-      let x = Math.cos(startAngle) * 0.28;
-      let y = startY;
-      let z = Math.sin(startAngle) * 0.28 * 0.12 - 0.05;
-
-      for (let j = 0; j < 6; j++) {
-        points.push(new THREE.Vector3(x, y, z));
-        x += (Math.random() - 0.5) * 0.03;
-        y += (Math.random() - 0.5) * 0.015;
-        z += Math.random() * 0.01;
-      }
-      lines.push(points);
-    }
-    return lines;
-  }, []);
-
+function CutawayGuide() {
   return (
-    <group ref={vesselsRef} position={[0, 0, 0]}>
-      {vessels.map((points, i) => (
-        <line key={i}>
-          <bufferGeometry>
-            <bufferAttribute
-              attach="attributes-position"
-              array={new Float32Array(points.flatMap(p => [p.x, p.y, p.z]))}
-              count={points.length}
-              itemSize={3}
-            />
-          </bufferGeometry>
-          <lineBasicMaterial color="#c41e3a" opacity={0.5} transparent />
-        </line>
-      ))}
-    </group>
+    <>
+      <mesh position={[0, -0.001, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+        <ringGeometry args={[0.5, 0.505, 64]} />
+        <meshBasicMaterial color="#5c6b8a" transparent opacity={0.35} />
+      </mesh>
+      <mesh position={[0.12, 0.1, 0.42]}>
+        <sphereGeometry args={[0.03, 16, 16]} />
+        <meshBasicMaterial color="#ffffff" transparent opacity={0.9} />
+      </mesh>
+    </>
   );
 }
 
 export default function EyeModel() {
   const { params } = useVision();
-  const eyeRef = useRef<THREE.Group>(null);
 
   const axialScaleZ = useMemo(() => {
-    const sphericalDiopter = params.sphere;
-
-    if (sphericalDiopter < 0) {
-      // 简化医学映射：近视（负球镜）通常与眼轴偏长相关，这里仅沿 z 轴做有限拉伸。
-      const myopiaAxialScale = 1 + Math.abs(sphericalDiopter) * 0.03;
-      return Math.min(myopiaAxialScale, 1.4);
+    if (params.sphere < 0) {
+      return Math.min(1 + Math.abs(params.sphere) * 0.03, 1.35);
     }
 
-    if (sphericalDiopter > 0) {
-      // 简化医学映射：远视（正球镜）常见为眼轴偏短，这里采用轻微缩短避免视觉夸张。
-      const hyperopiaAxialScale = 1 - sphericalDiopter * 0.01;
-      return Math.max(hyperopiaAxialScale, 0.92);
+    if (params.sphere > 0) {
+      return Math.max(1 - params.sphere * 0.01, 0.92);
     }
 
-    // 正视眼（0D）使用基准眼轴长度。
     return 1;
   }, [params.sphere]);
 
-  useFrame((state) => {
-    if (eyeRef.current) {
-      eyeRef.current.rotation.y = Math.sin(state.clock.elapsedTime * 0.5) * 0.08;
-      eyeRef.current.rotation.x = Math.sin(state.clock.elapsedTime * 0.3) * 0.04;
-    }
-  });
-
   return (
-    <group ref={eyeRef} position={[0, 0, 0]}>
-      {/* 内部结构 */}
-      <BloodVessels />
-      <Iris />
-      <Pupil />
-
-      {/* 外部结构 - 半透明 */}
+    <group>
       <Sclera scaleZ={axialScaleZ} />
+      <Retina scaleZ={axialScaleZ} />
+      <Lens />
+      <IrisTexture />
+      <Pupil />
       <Cornea />
-
-      {/* 高光 */}
-      <mesh position={[0.1, 0.1, 0.3]}>
-        <sphereGeometry args={[0.035, 16, 16]} />
-        <meshBasicMaterial color="#ffffff" opacity={0.95} transparent />
-      </mesh>
+      <CutawayGuide />
     </group>
   );
 }

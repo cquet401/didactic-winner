@@ -1,28 +1,36 @@
-import { Suspense, useRef, useMemo, useEffect } from 'react';
+import { Suspense, useEffect, useMemo, useRef } from 'react';
 import { Canvas, useThree } from '@react-three/fiber';
-import { OrbitControls, Environment } from '@react-three/drei';
+import { Environment, OrbitControls } from '@react-three/drei';
 import * as THREE from 'three';
 import { useVision, CameraAngle } from '../../contexts/VisionContext';
 import EyeModel from './EyeModel';
 import SimulationScene from './SimulationScene';
 
-const CAMERA_PRESETS: Record<
+const ANATOMY_CAMERA_PRESETS: Record<
   CameraAngle,
   {
     position: [number, number, number];
+    target: [number, number, number];
     fov: number;
     near: number;
     far: number;
   }
 > = {
-  front: { position: [0, 0, 3], fov: 50, near: 0.1, far: 100 },
-  top: { position: [0, 3, 0.1], fov: 50, near: 0.1, far: 100 },
-  bottom: { position: [0, -3, 0.1], fov: 50, near: 0.1, far: 100 },
-  left: { position: [-3, 0, 0.1], fov: 50, near: 0.1, far: 100 },
-  right: { position: [3, 0, 0.1], fov: 50, near: 0.1, far: 100 },
+  front: { position: [0, 0, 3], target: [0, 0, 0], fov: 50, near: 0.1, far: 100 },
+  top: { position: [0, 3, 0.1], target: [0, 0, 0], fov: 50, near: 0.1, far: 100 },
+  bottom: { position: [0, -3, 0.1], target: [0, 0, 0], fov: 50, near: 0.1, far: 100 },
+  left: { position: [-3, 0, 0.1], target: [0, 0, 0], fov: 50, near: 0.1, far: 100 },
+  right: { position: [3, 0, 0.1], target: [0, 0, 0], fov: 50, near: 0.1, far: 100 },
 };
 
-// 模拟近视模糊效果 - 使用简单的雾效
+const SIMULATION_CAMERA = {
+  position: [0, 1.3, 6.5] as [number, number, number],
+  target: [0, 1.2, -8] as [number, number, number],
+  fov: 55,
+  near: 0.1,
+  far: 120,
+};
+
 function MyopiaFog() {
   const { params } = useVision();
   const { scene } = useThree();
@@ -60,78 +68,65 @@ function MyopiaFog() {
   return null;
 }
 
-// 相机位置控制组件
 function CameraController() {
-  const { cameraAngle, autoRotate } = useVision();
+  const { viewMode, cameraAngle, autoRotate } = useVision();
   const controlsRef = useRef<any>(null);
   const { camera } = useThree();
+  const perspectiveCamera = camera as THREE.PerspectiveCamera;
 
-  // 根据角度设置相机位置
   useEffect(() => {
-    const preset = CAMERA_PRESETS[cameraAngle];
-    camera.position.set(...preset.position);
-    camera.fov = preset.fov;
-    camera.near = preset.near;
-    camera.far = preset.far;
-    camera.updateProjectionMatrix();
-    camera.lookAt(0, 0, 0);
+    const preset = viewMode === 'anatomy' ? ANATOMY_CAMERA_PRESETS[cameraAngle] : SIMULATION_CAMERA;
+    perspectiveCamera.position.set(...preset.position);
+    perspectiveCamera.fov = preset.fov;
+    perspectiveCamera.near = preset.near;
+    perspectiveCamera.far = preset.far;
+    perspectiveCamera.updateProjectionMatrix();
+    perspectiveCamera.lookAt(...preset.target);
 
     if (controlsRef.current) {
-      const controls = controlsRef.current;
-      const shouldRestoreAutoRotate = controls.autoRotate;
-      controls.autoRotate = false;
-      controls.target.set(0, 0, 0);
-      controls.update();
-
-      if (shouldRestoreAutoRotate && autoRotate) {
-        requestAnimationFrame(() => {
-          if (controlsRef.current) {
-            controlsRef.current.autoRotate = true;
-          }
-        });
-      }
+      controlsRef.current.target.set(...preset.target);
+      controlsRef.current.update();
     }
-  }, [cameraAngle, camera, autoRotate]);
+  }, [viewMode, cameraAngle, perspectiveCamera]);
 
   useEffect(() => {
     if (controlsRef.current) {
-      controlsRef.current.autoRotate = autoRotate;
+      controlsRef.current.autoRotate = viewMode === 'anatomy' && autoRotate;
     }
-  }, [autoRotate]);
+  }, [viewMode, autoRotate]);
 
   return (
     <OrbitControls
       ref={controlsRef}
-      enablePan={true}
-      enableZoom={true}
+      enablePan
+      enableZoom
+      enableRotate
       minDistance={1.5}
-      maxDistance={8}
-      autoRotate={autoRotate}
+      maxDistance={16}
+      autoRotate={viewMode === 'anatomy' && autoRotate}
       autoRotateSpeed={0.8}
     />
   );
 }
 
-// 3D场景内容
 function SceneContent() {
   const { viewMode } = useVision();
 
   return (
     <>
-      {/* 环境光照 */}
       <ambientLight intensity={0.6} />
       <directionalLight position={[5, 10, 5]} intensity={0.8} castShadow />
       <pointLight position={[0, 5, 5]} intensity={0.4} color="#87CEEB" />
 
+      <CameraController />
+
       {viewMode === 'anatomy' ? (
         <>
-          <CameraController />
           <EyeModel />
           <Environment preset="city" />
         </>
       ) : (
         <>
-          {/* 雾效单一数据源：仅由 MyopiaFog 基于 SPH/CYL/AXIS 计算并写入 scene.fog */}
           <MyopiaFog />
           <SimulationScene />
         </>
@@ -140,7 +135,6 @@ function SceneContent() {
   );
 }
 
-// 加载指示器
 function Loader() {
   return (
     <mesh>
@@ -155,10 +149,10 @@ export default function Scene3D() {
     <div className="w-full h-full bg-slate-900">
       <Canvas
         camera={{
-          position: CAMERA_PRESETS.front.position,
-          fov: CAMERA_PRESETS.front.fov,
-          near: CAMERA_PRESETS.front.near,
-          far: CAMERA_PRESETS.front.far,
+          position: ANATOMY_CAMERA_PRESETS.front.position,
+          fov: ANATOMY_CAMERA_PRESETS.front.fov,
+          near: ANATOMY_CAMERA_PRESETS.front.near,
+          far: ANATOMY_CAMERA_PRESETS.front.far,
         }}
         gl={{
           antialias: true,
