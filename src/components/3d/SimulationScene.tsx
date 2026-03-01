@@ -1,14 +1,9 @@
 import { useRef, useMemo } from 'react';
-import { useFrame, useThree } from '@react-three/fiber';
+import { useFrame } from '@react-three/fiber';
 import {
-  Sphere,
-  Box,
-  Plane,
   Text,
-  Float,
 } from '@react-three/drei';
 import * as THREE from 'three';
-import { useVision } from '../../contexts/VisionContext';
 
 function CityBuilding({
   position,
@@ -186,13 +181,7 @@ function Sky() {
 }
 
 export default function SimulationScene() {
-  const { params } = useVision();
   const groupRef = useRef<THREE.Group>(null);
-
-  // 根据视力参数调整场景
-  const fogDensity = useMemo(() => {
-    return Math.min(Math.abs(params.sphere) * 0.05, 0.3);
-  }, [params.sphere]);
 
   useFrame((state) => {
     if (groupRef.current) {
@@ -209,8 +198,6 @@ export default function SimulationScene() {
       <directionalLight position={[5, 10, 5]} intensity={0.8} castShadow />
       <pointLight position={[0, 3, 0]} intensity={0.3} color="#87CEEB" />
 
-      {/* 雾效果 - 根据近视程度增加 */}
-      <fog attach="fog" args={['#1a1a2e', 5, 25 + fogDensity * 10]} />
 
       <group ref={groupRef}>
         {/* 地面和道路 */}
